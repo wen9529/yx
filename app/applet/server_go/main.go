@@ -15,7 +15,7 @@ import (
 	"monolith/pkg/config"
 	"monolith/pkg/grpc"
 	"monolith/pkg/matchmaker"
-	"monolith/pkg/redissync"
+	"monolith/pkg/redis_sync"
 	"monolith/pkg/settlement"
 	"monolith/pkg/telegram"
 )
@@ -35,7 +35,7 @@ func main() {
 	cfg.PrintSummary()
 
 	// 1. Initialize Redis Synchronization Manager
-	redisMgr := redissync.NewRedisSyncManager(cfg.RedisAddr, cfg.RedisPass, 0)
+	redisMgr := redis_sync.NewRedisSyncManager(cfg.RedisAddr, cfg.RedisPass, 0)
 	_ = redisMgr
 	log.Printf("[Redis] Initialized state sync manager on %s (Connection Pool: 200)", cfg.RedisAddr)
 
