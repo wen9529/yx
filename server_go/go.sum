@@ -3,4 +3,4 @@ github.com/cespare/xxhash/v2 v2.2.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOLe55U
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70SZWOgo36tzzCQ=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTYrK0thu/Ge534SJjDJtnUAgFaLqS5CYOU=
 github.com/redis/go-redis/v9 v9.5.1 h1:yU1h4R02jC7F9zE16e1Z8g5n5G1T/qG/K7pG2q8=
-github.com/redis/go-redis/v9 v9.5.1/go.mod h1:X1Kek7s7oI9g9qY6/N0p0qG2=
+github.com/redis/go-redis/v9 v9.5.1/go.mod h1:hdY0cQFCN4fnSYT6TkisLufl/4W5UIXyv0b/CLO2V2M=
