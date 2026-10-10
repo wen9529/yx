@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"monolith/pkg/chat"
-	"monolith/pkg/config"
-	"monolith/pkg/grpc"
-	"monolith/pkg/matchmaker"
-	"monolith/pkg/redissync"
-	"monolith/pkg/settlement"
-	"monolith/pkg/telegram"
+	"game/monolith/pkg/chat"
+	"game/monolith/pkg/config"
+	"game/monolith/pkg/grpc"
+	"game/monolith/pkg/matchmaker"
+	"game/monolith/pkg/redissync"
+	"game/monolith/pkg/settlement"
+	"game/monolith/pkg/telegram"
 )
 
 func main() {
@@ -101,7 +101,7 @@ func main() {
 		})
 	})
 
-    // Metrics endpoint
+	// Metrics endpoint
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
