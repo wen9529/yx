@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gamehall/monolith/pkg/chat"
-	"github.com/gamehall/monolith/pkg/config"
-	"github.com/gamehall/monolith/pkg/grpc"
-	"github.com/gamehall/monolith/pkg/matchmaker"
-	"github.com/gamehall/monolith/pkg/redissync"
-	"github.com/gamehall/monolith/pkg/settlement"
-	"github.com/gamehall/monolith/pkg/telegram"
+	"monolith/pkg/chat"
+	"monolith/pkg/config"
+	"monolith/pkg/grpc"
+	"monolith/pkg/matchmaker"
+	"monolith/pkg/redissync"
+	"monolith/pkg/settlement"
+	"monolith/pkg/telegram"
 )
 
 func main() {

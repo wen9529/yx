@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package game.v1;
 
-option go_package = "github.com/gamehall/monolith/proto;gamev1";
+option go_package = "monolith/proto;gamev1";
 
 // 游戏品类枚举
 enum GameType {

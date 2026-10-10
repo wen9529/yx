@@ -6,8 +6,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/gamehall/monolith/pkg/matchmaker"
-	"github.com/gamehall/monolith/pkg/settlement"
+	"monolith/pkg/matchmaker"
+	"monolith/pkg/settlement"
 )
 
 // MonolithGrpcServer ties together cross-game services in the monolith

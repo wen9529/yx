@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gamehall/monolith/pkg/settlement"
+	"monolith/pkg/settlement"
 )
 
 type BotConfig struct {
