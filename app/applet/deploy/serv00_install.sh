@@ -91,7 +91,7 @@ export GOARCH=amd64
 export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
 export GOSUMDB=off
 export GOPRIVATE=github.com/gamehall/monolith
-go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" ./main.go
+go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
 chmod +x "$SCRIPT_DIR/server_go/bin/gamehall-monolith"
 echo "${GREEN}FreeBSD 二进制编译成功: server_go/bin/gamehall-monolith${NC}"
 

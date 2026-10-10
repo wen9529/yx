@@ -96,7 +96,7 @@ echo -e "正在同步 Go 模块依赖并修剪缓存 (GOPROXY: goproxy.cn)..."
 rm -f go.sum
 go mod tidy || true
 go mod download || true
-go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" ./main.go
+go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
 echo -e "${GREEN}Go 单体核心二进制编译完成: server_go/bin/gamehall-monolith${NC}"
 
 # 5. 编译前端静态页面 (可选本地或直接开发环境)

@@ -64,7 +64,7 @@ export CGO_ENABLED=0
 export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
 export GOSUMDB=off
 export GOPRIVATE=github.com/gamehall/monolith
-go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" ./main.go
+go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
 chmod +x "$SCRIPT_DIR/server_go/bin/gamehall-monolith"
 echo -e "${GREEN}Go 二进制编译完成: $SCRIPT_DIR/server_go/bin/gamehall-monolith${NC}"
 
