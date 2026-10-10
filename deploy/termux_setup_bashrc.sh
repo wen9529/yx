@@ -41,27 +41,62 @@ fi
 # 确保安装必要依赖
 pkg update -y && pkg install -y ca-certificates proot curl
 
-# 确保 cloudflared 二进制已安装至 $HOME/bin 或 $PREFIX/bin
+# 确保 cloudflared 二进制已安装至 $PREFIX/bin 与 $HOME/bin
 mkdir -p "$HOME/bin"
 export PATH="$HOME/bin:$PREFIX/bin:$PATH"
 
-if ! command -v cloudflared >/dev/null 2>&1 && [ ! -f "$HOME/bin/cloudflared" ]; then
-    echo -e "${BLUE}检测到 cloudflared 未安装，正在自动下载官方 ARM64 客户端...${NC}"
-    ARCH=$(uname -m)
-    CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
-    if [ "$ARCH" = "arm" ] || [ "$ARCH" = "armv7l" ]; then
-        CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"
+install_cloudflared() {
+    # 方式 1: 尝试通过 Termux 官方 TUR 源安装 (如果有)
+    if pkg install -y tur-repo 2>/dev/null && pkg install -y cloudflared 2>/dev/null; then
+        echo -e "${GREEN}✓ 成功通过 Termux 仓库安装 cloudflared${NC}"
+        return 0
     fi
-    curl -L --retry 3 --connect-timeout 10 -o "$HOME/bin/cloudflared" "$CF_URL" || {
-        echo -e "${YELLOW}通过加速源重试下载...${NC}"
-        curl -L -o "$HOME/bin/cloudflared" "https://ghproxy.net/$CF_URL" || true
-    }
-    chmod +x "$HOME/bin/cloudflared"
-fi
 
-# 建立软链接到系统路径，确保 termux-chroot 和普通环境均能直接找到
-if [ -f "$HOME/bin/cloudflared" ] && [ ! -f "$PREFIX/bin/cloudflared" ]; then
-    ln -sf "$HOME/bin/cloudflared" "$PREFIX/bin/cloudflared" 2>/dev/null || true
+    # 方式 2: 多源下载 ARM64 / ARM 预编译静态二进制
+    echo -e "${BLUE}正在从镜像源下载官方 ARM64/ARM cloudflared 二进制...${NC}"
+    ARCH=$(uname -m)
+    TARGET_FILE="$PREFIX/bin/cloudflared"
+    
+    BIN_NAME="cloudflared-linux-arm64"
+    if [ "$ARCH" = "arm" ] || [ "$ARCH" = "armv7l" ]; then
+        BIN_NAME="cloudflared-linux-arm"
+    fi
+
+    URLS=(
+        "https://mirror.ghproxy.com/https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+        "https://ghproxy.net/https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+        "https://github.moeyy.xyz/https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+    )
+
+    for url in "${URLS[@]}"; do
+        echo -e "尝试源: $url"
+        if curl -L --retry 2 --connect-timeout 8 -o "$TARGET_FILE" "$url" 2>/dev/null; then
+            # 验证下载文件是否有效 (大小应大于 5MB，避免下载到 404/html 错误页)
+            FILE_SIZE=$(wc -c < "$TARGET_FILE" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 5000000 ]; then
+                chmod +x "$TARGET_FILE"
+                ln -sf "$TARGET_FILE" "$HOME/bin/cloudflared" 2>/dev/null || true
+                echo -e "${GREEN}✓ cloudflared 下载并校验成功！(${FILE_SIZE} 字节)${NC}"
+                return 0
+            else
+                rm -f "$TARGET_FILE"
+            fi
+        fi
+    done
+
+    echo -e "${YELLOW}警告: 自动下载 cloudflared 未完成，稍后可运行 ./deploy/termux_tunnel.sh 重试。${NC}"
+    return 1
+}
+
+# 检查当前 cloudflared 是否有效
+CF_CHECK_CMD=$(command -v cloudflared 2>/dev/null || echo "")
+if [ -z "$CF_CHECK_CMD" ] || ! "$CF_CHECK_CMD" --version >/dev/null 2>&1; then
+    install_cloudflared || true
+else
+    # 确保两处都有软链接
+    [ -f "$PREFIX/bin/cloudflared" ] && ln -sf "$PREFIX/bin/cloudflared" "$HOME/bin/cloudflared" 2>/dev/null || true
+    [ -f "$HOME/bin/cloudflared" ] && [ ! -f "$PREFIX/bin/cloudflared" ] && ln -sf "$HOME/bin/cloudflared" "$PREFIX/bin/cloudflared" 2>/dev/null || true
 fi
 
 # 写入 ~/.bashrc
@@ -90,9 +125,16 @@ if [ -n "$CF_TOKEN" ]; then
 # 3. 自动启动 Cloudflared 隧道 (自定 Token 模式)
 # ==============================================================================
 if ! pgrep -f cloudflared >/dev/null 2>&1; then
-    echo "正在后台启动 Cloudflare 生产穿透隧道 (IPv4 + HTTP/2)..."
-    CF_BIN=\$(command -v cloudflared 2>/dev/null || echo "\$HOME/bin/cloudflared")
-    termux-chroot "\$CF_BIN" tunnel --edge-ip-version 4 --protocol http2 run --token ${CF_TOKEN} > \$HOME/cloudflared.log 2>&1 &
+    CF_BIN=\$(command -v cloudflared 2>/dev/null || echo "\$PREFIX/bin/cloudflared")
+    if [ ! -x "\$CF_BIN" ] && [ -x "\$HOME/bin/cloudflared" ]; then
+        CF_BIN="\$HOME/bin/cloudflared"
+    fi
+    if [ -x "\$CF_BIN" ]; then
+        echo "正在后台启动 Cloudflare 生产穿透隧道 (IPv4 + HTTP/2)..."
+        termux-chroot "\$CF_BIN" tunnel --edge-ip-version 4 --protocol http2 run --token ${CF_TOKEN} > \$HOME/cloudflared.log 2>&1 &
+    else
+        echo "提示: cloudflared 客户端未就绪，请在终端执行: ./deploy/termux_tunnel.sh 自动安装"
+    fi
 fi
 EOF
 else
@@ -101,9 +143,16 @@ else
 # 3. 自动启动 Cloudflared 隧道 (临时 Quick Tunnel 模式)
 # ==============================================================================
 if ! pgrep -f cloudflared >/dev/null 2>&1; then
-    echo "正在后台启动 Cloudflare 快速穿透隧道 (IPv4 + HTTP/2)..."
-    CF_BIN=$(command -v cloudflared 2>/dev/null || echo "$HOME/bin/cloudflared")
-    termux-chroot "$CF_BIN" tunnel --edge-ip-version 4 --protocol http2 --url http://127.0.0.1:8080 > $HOME/cloudflared.log 2>&1 &
+    CF_BIN=$(command -v cloudflared 2>/dev/null || echo "$PREFIX/bin/cloudflared")
+    if [ ! -x "$CF_BIN" ] && [ -x "$HOME/bin/cloudflared" ]; then
+        CF_BIN="$HOME/bin/cloudflared"
+    fi
+    if [ -x "$CF_BIN" ]; then
+        echo "正在后台启动 Cloudflare 快速穿透隧道 (IPv4 + HTTP/2)..."
+        termux-chroot "$CF_BIN" tunnel --edge-ip-version 4 --protocol http2 --url http://127.0.0.1:8080 > $HOME/cloudflared.log 2>&1 &
+    else
+        echo "提示: cloudflared 客户端未就绪，请在终端执行: ./deploy/termux_tunnel.sh 自动安装"
+    fi
 fi
 EOF
 fi

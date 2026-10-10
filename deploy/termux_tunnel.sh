@@ -48,28 +48,61 @@ CF_EDGE_IP_VERSION=${CLOUDFLARE_EDGE_IP_VERSION:-"4"}
 # 5. 检查或安装 cloudflared 二进制 (ARM64 架构)
 echo -e "${BLUE}[4/6] 检测 cloudflared 客户端二进制...${NC}"
 mkdir -p "$HOME/bin"
-export PATH="$HOME/bin:$PATH"
+export PATH="$HOME/bin:$PREFIX/bin:$PATH"
 
-if ! command -v cloudflared >/dev/null 2>&1; then
-    ARCH=$(uname -m)
-    echo -e "当前系统架构: $ARCH，正在下载官方 cloudflared..."
-    
-    CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
-    if [ "$ARCH" = "arm" ] || [ "$ARCH" = "armv7l" ]; then
-        CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"
-    elif [ "$ARCH" = "aarch64" ]; then
-        CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
+install_cf() {
+    # 方式 1: Termux 官方 TUR 仓库
+    if pkg install -y tur-repo 2>/dev/null && pkg install -y cloudflared 2>/dev/null; then
+        echo -e "${GREEN}✓ 成功通过 Termux 仓库安装 cloudflared${NC}"
+        return 0
     fi
 
-    # 使用 curl 下载二进制，失败时尝试镜像加速
-    curl -L --retry 3 --connect-timeout 10 -o "$HOME/bin/cloudflared" "$CF_URL" || {
-        echo -e "${YELLOW}通过加速源重试下载...${NC}"
-        curl -L -o "$HOME/bin/cloudflared" "https://ghproxy.net/$CF_URL" || true
+    # 方式 2: 多源下载官方 ARM64/ARM 静态二进制
+    ARCH=$(uname -m)
+    TARGET_BIN="$PREFIX/bin/cloudflared"
+    BIN_NAME="cloudflared-linux-arm64"
+    if [ "$ARCH" = "arm" ] || [ "$ARCH" = "armv7l" ]; then
+        BIN_NAME="cloudflared-linux-arm"
+    fi
+
+    URLS=(
+        "https://mirror.ghproxy.com/https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+        "https://ghproxy.net/https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+        "https://github.moeyy.xyz/https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/${BIN_NAME}"
+    )
+
+    for url in "${URLS[@]}"; do
+        echo -e "正在尝试下载源: $url"
+        if curl -L --retry 2 --connect-timeout 8 -o "$TARGET_BIN" "$url" 2>/dev/null; then
+            FILE_SIZE=$(wc -c < "$TARGET_BIN" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 5000000 ]; then
+                chmod +x "$TARGET_BIN"
+                ln -sf "$TARGET_BIN" "$HOME/bin/cloudflared" 2>/dev/null || true
+                echo -e "${GREEN}✓ cloudflared 下载并校验成功！(${FILE_SIZE} 字节)${NC}"
+                return 0
+            else
+                rm -f "$TARGET_BIN"
+            fi
+        fi
+    done
+    return 1
+}
+
+CF_BIN=$(command -v cloudflared 2>/dev/null || echo "")
+if [ -z "$CF_BIN" ] || ! "$CF_BIN" --version >/dev/null 2>&1; then
+    install_cf || {
+        echo -e "${RED}错误: 未能成功下载 cloudflared 二进制，请检查网络后重试。${NC}"
+        exit 1
     }
-    chmod +x "$HOME/bin/cloudflared"
+    CF_BIN=$(command -v cloudflared 2>/dev/null || echo "$PREFIX/bin/cloudflared")
 fi
 
-echo -e "${GREEN}cloudflared 客户端就绪: $($HOME/bin/cloudflared --version 2>/dev/null || echo 'OK')${NC}"
+# 确保双向符号链接
+[ -f "$PREFIX/bin/cloudflared" ] && ln -sf "$PREFIX/bin/cloudflared" "$HOME/bin/cloudflared" 2>/dev/null || true
+[ -f "$HOME/bin/cloudflared" ] && [ ! -f "$PREFIX/bin/cloudflared" ] && ln -sf "$HOME/bin/cloudflared" "$PREFIX/bin/cloudflared" 2>/dev/null || true
+
+echo -e "${GREEN}cloudflared 客户端就绪: $($CF_BIN --version 2>/dev/null || echo 'OK')${NC}"
 
 # 6. 使用 termux-chroot 启动隧道进程 (强制 IPv4 和 HTTP/2 协议，避免 UDP/QUIC 阻断)
 echo -e "${BLUE}[5/6] 通过 termux-chroot 启动 Cloudflare 穿透隧道...${NC}"
@@ -79,7 +112,7 @@ TUNNEL_LOG="$HOME/cloudflared.log"
 
 if [ -n "$CF_TOKEN" ]; then
     echo -e "${GREEN}检测到已配置 Token，启动自定域名生产隧道 (--edge-ip-version 4 --protocol http2)...${NC}"
-    nohup termux-chroot "$HOME/bin/cloudflared" tunnel \
+    nohup termux-chroot "$CF_BIN" tunnel \
         --edge-ip-version "$CF_EDGE_IP_VERSION" \
         --protocol http2 \
         run --token "$CF_TOKEN" > "$TUNNEL_LOG" 2>&1 &
