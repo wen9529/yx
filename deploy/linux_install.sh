@@ -53,6 +53,7 @@ mkdir -p "$SCRIPT_DIR/server_go/bin"
 export CGO_ENABLED=0
 export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
 export GOSUMDB=off
+export GOPRIVATE=github.com/gamehall/monolith
 go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" ./main.go
 chmod +x "$SCRIPT_DIR/server_go/bin/gamehall-monolith"
 

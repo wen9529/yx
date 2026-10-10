@@ -79,6 +79,7 @@ cd "$SCRIPT_DIR/server_go"
 export CGO_ENABLED=0
 export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
 export GOSUMDB=off
+export GOPRIVATE=github.com/gamehall/monolith
 mkdir -p "$SCRIPT_DIR/server_go/bin"
 echo -e "正在同步 Go 模块依赖并修剪缓存 (GOPROXY: goproxy.cn)..."
 rm -f go.sum
