@@ -30,8 +30,21 @@ echo -e "nameserver 223.5.5.5\nnameserver 119.29.29.29\nnameserver 1.1.1.1" > "$
 
 # 3. 更新软件源并安装基础依赖 (包含 ca-certificates 根证书与 proot)
 echo -e "${BLUE}[3/7] 安装系统依赖 (Golang, Redis, Git, Make, Node.js, CA证书, proot)...${NC}"
+
+# Check for pkg/apt
+if ! command -v pkg >/dev/null 2>&1; then
+    echo -e "${RED}错误：未找到 pkg 命令。当前环境可能不是 Termux 或未配置正确。${NC}"
+    echo -e "${YELLOW}请确保您在 Termux 环境中运行。${NC}"
+    exit 1
+fi
+
 pkg update -y
 pkg install -y golang redis git make nodejs-lts ca-certificates curl proot
+
+# Ensure PATH includes PREFIX/bin
+if [ -n "$PREFIX" ]; then
+    export PATH="$PREFIX/bin:$PATH"
+fi
 
 # 导出 Go DNS 与 SSL 证书环境变量
 export GODEBUG=netdns=go
