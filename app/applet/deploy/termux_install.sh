@@ -1,156 +1,115 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# ==============================================================================
-# Go 棋牌游戏大厅 (Game Hall Monolith) - Termux (Android) 一键安装与启动脚本
-# ==============================================================================
-
 set -e
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+echo "=================================================================="
+echo "  正在为 Android Termux 部署 Go 棋牌游戏大厅全栈单体服务..."
+echo "=================================================================="
 
-echo -e "${YELLOW}==================================================================${NC}"
-echo -e "${GREEN}  正在为 Android Termux 部署 Go 棋牌游戏大厅全栈单体服务...        ${NC}"
-echo -e "${YELLOW}==================================================================${NC}"
-
-# 1. 防止锁屏休眠导致进程挂起
 if command -v termux-wake-lock >/dev/null 2>&1; then
-    echo -e "${BLUE}[1/6] 申请 Termux 后台唤醒锁 (Wake-Lock)...${NC}"
+    echo "[1/7] 申请 Termux 后台唤醒锁 (Wake-Lock)..."
     termux-wake-lock
-else
-    echo -e "${YELLOW}[提示] 未检测到 termux-wake-lock 命令，请保持 Termux 前台运行。${NC}"
 fi
 
-# 2. 自动配置 DNS (解决 Go 语言域名解析报错及 [::1]:53 拒绝连接)
-echo -e "${BLUE}[2/7] 配置 Termux DNS 解析器 (解决 [::1]:53 报错)...${NC}"
+echo "[2/7] 配置 Termux DNS 解析器..."
 mkdir -p "$PREFIX/etc"
-echo -e "nameserver 223.5.5.5\nnameserver 119.29.29.29\nnameserver 1.1.1.1" > "$PREFIX/etc/resolv.conf"
+echo -e "nameserver 223.5.5.5\nnameserver 119.29.29.29" > "$PREFIX/etc/resolv.conf"
 
-# 3. 更新软件源并安装基础依赖 (包含 ca-certificates 根证书与 proot)
-echo -e "${BLUE}[3/7] 安装系统依赖 (Golang, Redis, Git, Make, Node.js, CA证书, proot)...${NC}"
-
-# Check for pkg/apt
-if ! command -v pkg >/dev/null 2>&1; then
-    echo -e "${RED}错误：未找到 pkg 命令。当前环境可能不是 Termux 或未配置正确。${NC}"
-    echo -e "${YELLOW}请确保您在 Termux 环境中运行。${NC}"
-    exit 1
-fi
-
+echo "[3/7] 安装系统依赖..."
 pkg update -y
 pkg install -y golang redis git make nodejs-lts ca-certificates curl proot
 
-# Ensure PATH includes PREFIX/bin
-if [ -n "$PREFIX" ]; then
-    export PATH="$PREFIX/bin:$PATH"
-fi
-
-# 导出 Go DNS 与 SSL 证书环境变量
 export GODEBUG=netdns=go
-export SSL_CERT_FILE="$PREFIX/etc/tls/cert.pem"
-
-# 4. 加载环境配置 (优先支持项目上一级目录，防 git pull 覆盖)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-ENV_FILE=""
 
-if [ -f "$PARENT_DIR/.env" ]; then
-    ENV_FILE="$PARENT_DIR/.env"
-    echo -e "${GREEN}✓ [环境配置] 检测到上一级目录配置文件: $ENV_FILE (安全防覆盖)${NC}"
-elif [ -f "$SCRIPT_DIR/.env" ]; then
-    ENV_FILE="$SCRIPT_DIR/.env"
-    echo -e "${YELLOW}ℹ [环境配置] 检测到仓库内部 .env 文件: $ENV_FILE${NC}"
-else
-    if [ -f "$SCRIPT_DIR/.env.example" ]; then
-        echo -e "${YELLOW}ℹ [环境配置] 自动在项目上一级目录初始化 .env: $PARENT_DIR/.env (避免后续 git pull 冲突)${NC}"
-        cp "$SCRIPT_DIR/.env.example" "$PARENT_DIR/.env"
-        ENV_FILE="$PARENT_DIR/.env"
-    fi
-fi
-
-if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
-    set -a
-    . "$ENV_FILE"
-    set +a
-fi
-
-# 5. 启动本地 Redis 服务 (后台运行)
-echo -e "${BLUE}[4/7] 启动 Termux Redis 内存服务...${NC}"
+echo "[4/7] 启动 Redis 服务..."
 mkdir -p "$HOME/.redis"
-if pgrep redis-server >/dev/null; then
-    echo -e "${GREEN}Redis 服务已在运行。${NC}"
-else
+if ! pgrep redis-server >/dev/null; then
     redis-server --daemonize yes --dir "$HOME/.redis" --bind 127.0.0.1 --port 6379
-    echo -e "${GREEN}Redis 内存数据库已在 127.0.0.1:6379 启动。${NC}"
 fi
 
-# 6. 编译 Go 棋牌核心单体服务
-echo -e "${BLUE}[5/7] 编译 Go 棋牌单体微内核 (ARM/ARM64 优化)...${NC}"
+echo "[5/7] 编译 Go 核心后端..."
+cd "$SCRIPT_DIR"
+[ -d "pkg" ] && rm -rf "server_go/pkg" && cp -r "pkg" "server_go/"
+[ -d "proto" ] && rm -rf "server_go/proto" && cp -r "proto" "server_go/"
+
 cd "$SCRIPT_DIR/server_go"
+find pkg -name "go.mod" -delete
+find pkg -name "go.sum" -delete
 
-# 强制启用模块模式并写入标准 pristine go.mod
-export GO111MODULE=on
-cat << 'EOF' > go.mod
-module monolith
+# 用 Node.js 修复所有子包包名，确保 package 与物理目录名一致
+node -e '
+const fs = require("fs");
+const path = require("path");
+function walk(dir) {
+    if (!fs.existsSync(dir)) return;
+    for (let e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) walk(full);
+        else if (e.isFile() && e.name.endsWith(".go")) {
+            const pName = path.basename(dir);
+            let c = fs.readFileSync(full, "utf8");
+            c = c.replace(/^([ \t]*package\s+)[a-zA-Z0-9_]+/gm, `$1${pName}`);
+            fs.writeFileSync(full, c, "utf8");
+        }
+    }
+}
+walk("pkg");
+'
 
-go 1.22.0
+# 修复包名映射与引用路径
+find . -name "*.go" -type f -exec sed -i 's|redissync|redis_sync|g' {} +
+find . -name "*.go" -type f -exec sed -i 's|"monolith/|"game/monolith/|g' {} +
+find . -name "*.go" -type f -exec sed -i 's|"example\.com/monolith/|"game/monolith/|g' {} +
 
-require (
-	github.com/redis/go-redis/v9 v9.5.1
-)
-EOF
+# 自动清理未使用的导入
+if [ -f "pkg/config/env.go" ]; then
+    sed -i '/"fmt"/d' pkg/config/env.go
+fi
+if [ -f "main.go" ]; then
+    sed -i '/"strconv"/d' main.go
+fi
+
+rm -f go.mod go.sum
+echo -e "module game/monolith\n\ngo 1.22.0\n\nreplace game/monolith => .\n\nrequire (\n\tgithub.com/redis/go-redis/v9 v9.5.1\n\tgithub.com/cespare/xxhash/v2 v2.2.0\n\tgithub.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f\n)" > go.mod
 
 export CGO_ENABLED=0
-export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
+export GO111MODULE=on
+export GOPROXY="https://goproxy.cn,direct"
 export GOSUMDB=off
-export GOPRIVATE=github.com/gamehall/monolith
+mkdir -p "bin"
 
-mkdir -p "$SCRIPT_DIR/server_go/bin"
-echo -e "正在同步 Go 模块依赖并修剪缓存 (GOPROXY: goproxy.cn)..."
-rm -f go.sum
-go mod tidy || true
-go mod download || true
-go build -mod=mod -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
+echo "正在下载并深度同步所有依赖..."
+go mod tidy
 
-echo -e "${GREEN}Go 单体核心二进制编译完成: server_go/bin/gamehall-monolith${NC}"
+echo "正在编译后端二进制..."
+go build -ldflags="-s -w" -o "bin/gamehall-monolith" .
+echo "Go 二进制编译成功！"
 
-# 5. 编译前端静态页面 (可选本地或直接开发环境)
+echo "[6/7] 打包前端静态资源..."
 cd "$SCRIPT_DIR"
 if [ ! -d "dist" ]; then
-    echo -e "${BLUE}[5/6] 首次打包前端静态资源...${NC}"
-    npm install --silent
+    npm install --legacy-peer-deps --silent
     npm run build
 fi
 
-# 6. 后台启动棋牌大厅服务
-echo -e "${BLUE}[6/6] 启动 Go 棋牌服务监听...${NC}"
+echo "[7/7] 启动棋牌大厅服务..."
 pkill -f "gamehall-monolith" || true
-
-export HTTP_PORT=${HTTP_PORT:-8080}
-export GRPC_PORT=${GRPC_PORT:-50051}
-export REDIS_ADDR=${REDIS_ADDR:-"127.0.0.1:6379"}
-
+export HTTP_PORT=8080
+export GRPC_PORT=50051
+export REDIS_ADDR="127.0.0.1:6379"
 nohup "$SCRIPT_DIR/server_go/bin/gamehall-monolith" > "$HOME/gamehall.log" 2>&1 &
 PID=$!
-sleep 2
 
+sleep 2
 if ps -p $PID > /dev/null; then
-    # 获取手机内网 IP
     LOCAL_IP=$(ip -4 addr show wlan0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' || echo "127.0.0.1")
-    echo -e "${GREEN}==================================================================${NC}"
-    echo -e "${GREEN}  ✓ 部署成功！Go 棋牌游戏大厅正在后台稳定运行 (PID: $PID)      ${NC}"
-    echo -e "${YELLOW}  本地访问地址: http://127.0.0.1:${HTTP_PORT}${NC}"
-    echo -e "${YELLOW}  局域网其他设备访问: http://${LOCAL_IP}:${HTTP_PORT}${NC}"
-    echo -e "${YELLOW}  gRPC 网格端口: ${GRPC_PORT}${NC}"
-    echo -e "${YELLOW}  运行日志位置: $HOME/gamehall.log${NC}"
-    echo -e "${GREEN}  ----------------------------------------------------------------${NC}"
-    echo -e "${GREEN}  💡 写入 ~/.bashrc 永久配置 DNS 与开机自动拉起隧道 (防大陆阻断):   ${NC}"
-    echo -e "${YELLOW}     chmod +x deploy/termux_setup_bashrc.sh && ./deploy/termux_setup_bashrc.sh ${NC}"
-    echo -e "${GREEN}  💡 立即启动 Cloudflare 公网隧道 (获取公网 HTTPS 访问域名):       ${NC}"
-    echo -e "${YELLOW}     chmod +x deploy/termux_tunnel.sh && ./deploy/termux_tunnel.sh ${NC}"
-    echo -e "${GREEN}==================================================================${NC}"
+    echo "=================================================================="
+    echo "  ✓ 部署成功！Go 棋牌游戏大厅正在后台稳定运行 (PID: $PID)"
+    echo "  本地访问地址: http://127.0.0.1:8080"
+    echo "  局域网访问地址: http://${LOCAL_IP}:8080"
+    echo "  运行日志位置: cat $HOME/gamehall.log"
+    echo "=================================================================="
 else
-    echo -e "${RED}启动失败，请检查日志: cat $HOME/gamehall.log${NC}"
+    echo "启动失败，请检查日志: cat $HOME/gamehall.log"
     exit 1
 fi
