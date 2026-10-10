@@ -72,9 +72,9 @@ else
     echo -e "${GREEN}Redis 内存数据库已在 127.0.0.1:6379 启动。${NC}"
 fi
 
-# 6. 编译 Go 棋牌核心单体服务
+# 6. 编译 Go 棋牌核心单体服务 (修正：在根目录编译，因为 go.mod 和 main.go 在根目录)
 echo -e "${BLUE}[5/7] 编译 Go 棋牌单体微内核 (ARM/ARM64 优化)...${NC}"
-cd "$SCRIPT_DIR/server_go"
+cd "$SCRIPT_DIR"
 
 export CGO_ENABLED=0
 export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
@@ -89,15 +89,14 @@ go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" ./mai
 
 echo -e "${GREEN}Go 单体核心二进制编译完成: server_go/bin/gamehall-monolith${NC}"
 
-# 5. 编译前端静态页面 (可选本地或直接开发环境)
-cd "$SCRIPT_DIR"
+# 7. 编译前端静态页面 (首次自动打包 React 前端)
 if [ ! -d "dist" ]; then
-    echo -e "${BLUE}[5/6] 首次打包前端静态资源...${NC}"
+    echo -e "${BLUE}[6/6] 首次打包前端静态资源...${NC}"
     npm install --silent
     npm run build
 fi
 
-# 6. 后台启动棋牌大厅服务
+# 8. 后台启动棋牌大厅服务
 echo -e "${BLUE}[6/6] 启动 Go 棋牌服务监听...${NC}"
 pkill -f "gamehall-monolith" || true
 
