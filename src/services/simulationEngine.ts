@@ -90,15 +90,21 @@ export function sortMahjongTiles(tiles: MahjongTile[]): MahjongTile[] {
 }
 
 // Generate starting room
-export function initializeRoom(gameType: GameType, roomTier: 'novice' | 'mid' | 'high' | 'master', userCoins: number): RoomState {
+export function initializeRoom(
+  gameType: GameType,
+  roomTier: 'novice' | 'mid' | 'high' | 'master',
+  userCoins: number,
+  playerName?: string,
+  playerAvatar?: string
+): RoomState {
   const baseScores = { novice: 100, mid: 500, high: 2000, master: 10000 };
   const baseScore = baseScores[roomTier];
   const roomId = `room_${gameType}_${Math.floor(1000 + Math.random() * 9000)}`;
 
   const humanPlayer: Player = {
     id: 'user_me',
-    name: '雀圣至尊 (你)',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+    name: playerName ? `${playerName} (你)` : '雀圣至尊 (你)',
+    avatar: playerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
     coins: userCoins,
     isHuman: true,
     cards: [],
