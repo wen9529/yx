@@ -31,6 +31,11 @@ export const DeploymentHub: React.FC = () => {
 
   const generatedEnvContent = `# ==============================================================================
 # Go 棋牌游戏大厅单体系统生产环境配置 (.env)
+# 
+# 💡 重要部署规则 (防 Git Pull 更新覆盖):
+# 建议在项目上一级目录创建此文件: ../.env
+# 优势: 后续执行 git pull 更新代码时，绝不会覆盖你的敏感 Token 与配置！
+# Go 单体核心与自动化脚本默认优先加载 ../.env
 # ==============================================================================
 
 # 基础端口与服务配置
@@ -535,16 +540,38 @@ chmod +x deploy/linux_tunnel.sh && ./deploy/linux_tunnel.sh
                   <span>.env 环境变量生成器与 Telegram Bot / 隧道配置</span>
                 </h3>
                 <p className="text-xs text-neutral-400 mt-1">
-                  在线配置你的 Telegram Bot Token、管理员 ID 以及 Cloudflare 隧道参数，一键生成项目根目录的 .env 文件
+                  在线配置你的 Telegram Bot Token、管理员 ID 与 Cloudflare 隧道参数，一键生成项目上一级目录的 .env 文件
                 </p>
               </div>
-              <button
-                onClick={() => handleCopy('env-full', generatedEnvContent)}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
-              >
-                {copiedKey === 'env-full' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedKey === 'env-full' ? '已复制全部 .env' : '一键生成并复制 .env'}</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handleCopy('env-parent-cmd', `cat << 'EOF' > ../.env\n${generatedEnvContent}\nEOF\necho "✓ 环境变量已保存到项目上一级目录 ../.env (防 git pull 覆盖)"`)}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-900/30"
+                >
+                  {copiedKey === 'env-parent-cmd' ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedKey === 'env-parent-cmd' ? '已复制命令' : '一键写入上一级目录 (../.env 推荐)'}</span>
+                </button>
+                <button
+                  onClick={() => handleCopy('env-full', generatedEnvContent)}
+                  className="px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-neutral-700"
+                >
+                  {copiedKey === 'env-full' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedKey === 'env-full' ? '已复制' : '复制纯文本'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Parent Directory Security Rationale Banner */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/60 via-neutral-950 to-teal-950/60 border border-emerald-500/30 text-xs text-neutral-300 space-y-2">
+              <div className="font-bold text-emerald-400 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                <span>重要架构设计：为什么必须把 .env 创建在项目上一级目录 (../.env)？</span>
+              </div>
+              <p className="text-neutral-400 leading-relaxed">
+                • <b>杜绝 Git 更新冲突</b>：后续从 GitHub 执行 <code className="text-amber-400">git pull origin main</code> 更新游戏大厅代码时，若 .env 放在仓库内容易触发本地修改冲突或被覆盖重置。<br />
+                • <b>机密数据隔离</b>：把包含 Telegram Bot Token 和 Cloudflare Tunnel Token 的配置放置在上级目录，有效防止代码推送时不慎误提交泄露。<br />
+                • <b>系统原生支持</b>：本项目的 Go 单体微内核、Termux 脚本、serv00 脚本与 Linux Systemd 单元已全链路内置原生优先加载 <code className="text-emerald-400">../.env</code>。
+              </p>
             </div>
 
             {/* Input Form */}

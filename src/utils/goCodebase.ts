@@ -86,6 +86,41 @@ func main() {
 }`
   },
   {
+    path: 'server_go/pkg/config/env.go',
+    category: 'core',
+    title: '上级目录环境加载器 (防 Git Pull 覆盖)',
+    description: '原生优先检索并解析 ../.env 配置，有效防范后续 git pull 造成的本地修改冲突与敏感 Token 丢失',
+    code: `package config
+
+import (
+	"bufio"
+	"log"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+// LoadEnv 优先按以下顺序加载 .env 配置:
+// 1. $ENV_FILE_PATH (自定义路径)
+// 2. ../.env (项目上一级目录 - 推荐，防 git pull 覆盖)
+// 3. ../../.env (二进制目录的上级)
+// 4. ./.env (当前项目目录)
+func LoadEnv() string {
+	candidates := []string{"../.env", "../../.env", ".env"}
+	for _, p := range candidates {
+		if abs, err := filepath.Abs(p); err == nil {
+			if info, err := os.Stat(abs); err == nil && !info.IsDir() {
+				parseAndSetEnv(abs)
+				log.Printf("[Config] ✓ 成功加载环境配置: %s (防 Git Pull 覆盖)", abs)
+				return abs
+			}
+		}
+	}
+	return ""
+}`
+  },
+  {
     path: 'proto/game.proto',
     category: 'proto',
     title: 'gRPC 跨游戏通信协议 (game.proto)',

@@ -13,21 +13,13 @@ import (
 	"time"
 
 	"github.com/gamehall/monolith/pkg/chat"
+	"github.com/gamehall/monolith/pkg/config"
 	"github.com/gamehall/monolith/pkg/grpc"
 	"github.com/gamehall/monolith/pkg/matchmaker"
 	"github.com/gamehall/monolith/pkg/redissync"
 	"github.com/gamehall/monolith/pkg/settlement"
 	"github.com/gamehall/monolith/pkg/telegram"
 )
-
-// MonolithConfig configuration parameters
-type MonolithConfig struct {
-	HttpPort        int    `json:"httpPort"`
-	GrpcPort        int    `json:"grpcPort"`
-	RedisAddr       string `json:"redisAddr"`
-	WorkerPoolCount int    `json:"workerPoolCount"`
-	HouseRakeRate   float64`json:"houseRakeRate"`
-}
 
 func main() {
 	log.Println("================================================================")
@@ -39,44 +31,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	httpPort := 8080
-	if p := os.Getenv("HTTP_PORT"); p != "" {
-		if val, err := strconv.Atoi(p); err == nil {
-			httpPort = val
-		}
-	}
-
-	grpcPort := 50051
-	if p := os.Getenv("GRPC_PORT"); p != "" {
-		if val, err := strconv.Atoi(p); err == nil {
-			grpcPort = val
-		}
-	}
-
-	redisAddr := "127.0.0.1:6379"
-	if addr := os.Getenv("REDIS_ADDR"); addr != "" {
-		redisAddr = addr
-	}
-
-	redisPass := os.Getenv("REDIS_PASS")
-
-	workerCount := 64
-	if w := os.Getenv("WORKER_POOL_COUNT"); w != "" {
-		if val, err := strconv.Atoi(w); err == nil {
-			workerCount = val
-		}
-	}
-
-	cfg := MonolithConfig{
-		HttpPort:        httpPort,
-		GrpcPort:        grpcPort,
-		RedisAddr:       redisAddr,
-		WorkerPoolCount: workerCount,
-		HouseRakeRate:   0.05, // 5% house tax
-	}
+	// Load configuration from ../.env (preferred to survive git pull updates) or ./.env
+	cfg := config.LoadConfig()
+	cfg.PrintSummary()
 
 	// 1. Initialize Redis Synchronization Manager
-	redisMgr := redissync.NewRedisSyncManager(cfg.RedisAddr, redisPass, 0)
+	redisMgr := redissync.NewRedisSyncManager(cfg.RedisAddr, cfg.RedisPass, 0)
+	_ = redisMgr
 	log.Printf("[Redis] Initialized state sync manager on %s (Connection Pool: 200)", cfg.RedisAddr)
 
 	// 2. Initialize Settlement Ledger Engine
@@ -93,13 +54,8 @@ func main() {
 	log.Printf("[Chat] In-game and Lobby real-time chat module online (Quick phrases: %d)", len(chat.QuickPhrases))
 
 	// 5. Initialize Telegram Admin Bot (if configured)
-	tgToken := os.Getenv("TELEGRAM_BOT_TOKEN")
-	var tgAdminID int64
-	if idStr := os.Getenv("TELEGRAM_ADMIN_ID"); idStr != "" {
-		tgAdminID, _ = strconv.ParseInt(idStr, 10, 64)
-	}
-	if tgToken != "" {
-		tgBot := telegram.NewTelegramBot(tgToken, tgAdminID, settleEngine)
+	if cfg.TelegramBotToken != "" {
+		tgBot := telegram.NewTelegramBot(cfg.TelegramBotToken, cfg.TelegramAdminID, settleEngine)
 		tgBot.Start(ctx)
 	}
 

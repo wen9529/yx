@@ -37,7 +37,32 @@ pkg install -y golang redis git make nodejs-lts ca-certificates curl proot
 export GODEBUG=netdns=go
 export SSL_CERT_FILE="$PREFIX/etc/tls/cert.pem"
 
-# 4. 启动本地 Redis 服务 (后台运行)
+# 4. 加载环境配置 (优先支持项目上一级目录，防 git pull 覆盖)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+ENV_FILE=""
+if [ -f "$PARENT_DIR/.env" ]; then
+    ENV_FILE="$PARENT_DIR/.env"
+    echo -e "${GREEN}✓ [环境配置] 检测到上一级目录配置文件: $ENV_FILE (安全防覆盖)${NC}"
+elif [ -f "$SCRIPT_DIR/.env" ]; then
+    ENV_FILE="$SCRIPT_DIR/.env"
+    echo -e "${YELLOW}ℹ [环境配置] 检测到仓库内部 .env 文件: $ENV_FILE${NC}"
+else
+    if [ -f "$SCRIPT_DIR/.env.example" ]; then
+        echo -e "${YELLOW}ℹ [环境配置] 自动在项目上一级目录初始化 .env: $PARENT_DIR/.env (避免后续 git pull 冲突)${NC}"
+        cp "$SCRIPT_DIR/.env.example" "$PARENT_DIR/.env"
+        ENV_FILE="$PARENT_DIR/.env"
+    fi
+fi
+
+if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+    set -a
+    . "$ENV_FILE"
+    set +a
+fi
+
+# 5. 启动本地 Redis 服务 (后台运行)
 echo -e "${BLUE}[4/7] 启动 Termux Redis 内存服务...${NC}"
 mkdir -p "$HOME/.redis"
 if pgrep redis-server >/dev/null; then
@@ -47,9 +72,8 @@ else
     echo -e "${GREEN}Redis 内存数据库已在 127.0.0.1:6379 启动。${NC}"
 fi
 
-# 5. 编译 Go 棋牌核心单体服务
+# 6. 编译 Go 棋牌核心单体服务
 echo -e "${BLUE}[5/7] 编译 Go 棋牌单体微内核 (ARM/ARM64 优化)...${NC}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR/server_go"
 
 export CGO_ENABLED=0

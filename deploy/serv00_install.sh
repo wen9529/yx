@@ -43,6 +43,22 @@ echo "${BLUE}[3/6] 配置 serv00 专属自定义端口...${NC}"
 echo "提示：serv00 必须使用 devil 申请的高位端口 (例如 10000-65535)。"
 echo "您可以通过命令 'devil port list' 查看已分配端口，或 'devil port add tcp' 申请新端口。"
 
+# 读取环境变量 (优先支持项目上一级目录，防 git pull 覆盖)
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ -f "$PARENT_DIR/.env" ]; then
+    echo "${GREEN}✓ [环境配置] 加载上一级目录配置: $PARENT_DIR/.env (安全防覆盖)${NC}"
+    set -a
+    . "$PARENT_DIR/.env"
+    set +a
+elif [ -f "$SCRIPT_DIR/.env" ]; then
+    echo "${YELLOW}ℹ [环境配置] 加载仓库内部配置: $SCRIPT_DIR/.env${NC}"
+    set -a
+    . "$SCRIPT_DIR/.env"
+    set +a
+fi
+
 # 读取环境变量或预设端口
 SERV00_HTTP_PORT=${HTTP_PORT:-${PORT:-28080}}
 SERV00_GRPC_PORT=${GRPC_PORT:-28081}

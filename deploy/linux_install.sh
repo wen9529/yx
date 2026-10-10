@@ -64,8 +64,15 @@ if [ ! -d "dist" ]; then
     npm run build
 fi
 
-# 5. 配置 Systemd 系统守护进程
+# 5. 配置 Systemd 系统守护进程 (支持项目上一级目录 .env，防 git pull 覆盖)
 echo -e "${BLUE}[5/6] 安装 Systemd 守护单元 (/etc/systemd/system/gamehall.service)...${NC}"
+PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ ! -f "$PARENT_DIR/.env" ] && [ ! -f "$SCRIPT_DIR/.env" ] && [ -f "$SCRIPT_DIR/.env.example" ]; then
+    echo -e "${YELLOW}ℹ [环境配置] 自动在项目上一级目录初始化 .env: $PARENT_DIR/.env (安全防覆盖)${NC}"
+    cp "$SCRIPT_DIR/.env.example" "$PARENT_DIR/.env"
+fi
+
 CURRENT_USER=$(whoami)
 SERVICE_FILE="/etc/systemd/system/gamehall.service"
 
@@ -78,6 +85,8 @@ After=network.target redis.service redis-server.service
 Type=simple
 User=$CURRENT_USER
 WorkingDirectory=$SCRIPT_DIR/server_go
+EnvironmentFile=-$PARENT_DIR/.env
+EnvironmentFile=-$SCRIPT_DIR/.env
 Environment=HTTP_PORT=8080
 Environment=GRPC_PORT=50051
 Environment=REDIS_ADDR=127.0.0.1:6379

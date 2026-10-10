@@ -29,10 +29,15 @@ pkg install -y ca-certificates curl proot
 export GODEBUG=netdns=go
 export SSL_CERT_FILE="$PREFIX/etc/tls/cert.pem"
 
-# 4. 读取项目根目录 .env 文件配置
+# 4. 读取环境变量配置 (优先检查项目上一级目录，防 git pull 覆盖)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    echo -e "${BLUE}[3/6] 加载 .env 环境变量配置...${NC}"
+PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ -f "$PARENT_DIR/.env" ]; then
+    echo -e "${GREEN}✓ [3/6] 加载项目上一级目录 .env 配置: $PARENT_DIR/.env (安全防覆盖)${NC}"
+    export $(grep -v '^#' "$PARENT_DIR/.env" | xargs)
+elif [ -f "$SCRIPT_DIR/.env" ]; then
+    echo -e "${YELLOW}ℹ [3/6] 加载仓库内部 .env 环境变量配置: $SCRIPT_DIR/.env${NC}"
     export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
 fi
 

@@ -25,8 +25,10 @@ ssh username@sX.serv00.com
 git clone https://github.com/YOUR_USER/gamehall-monolith.git
 cd gamehall-monolith
 
-# 3. 复制并根据需要配置 .env 环境变量
-cp .env.example .env
+# 3. 复制并配置 .env 环境变量 (强烈推荐放置在项目上一级目录，防 git pull 覆盖)
+cp .env.example ../.env
+# 编辑配置 (若需要配置 Telegram Bot 或自定义端口):
+nano ../.env
 
 # 4. 运行一键适配脚本
 chmod +x deploy/serv00_install.sh deploy/keepalive_serv00.sh

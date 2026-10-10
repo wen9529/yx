@@ -20,10 +20,16 @@ echo -e "${YELLOW}==============================================================
 echo -e "${GREEN}  正在为 Termux 生成 ~/.bashrc 永久环境变量与自启动配置...          ${NC}"
 echo -e "${YELLOW}==================================================================${NC}"
 
-# 读取项目根目录 .env 文件 (若存在)
+# 读取环境配置文件 (优先从上一级目录读取，防后续 git pull 覆盖)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CF_TOKEN=""
-if [ -f "$SCRIPT_DIR/.env" ]; then
+
+if [ -f "$PARENT_DIR/.env" ]; then
+    echo -e "${GREEN}✓ 从项目上一级目录读取配置: $PARENT_DIR/.env${NC}"
+    CF_TOKEN=$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' "$PARENT_DIR/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+elif [ -f "$SCRIPT_DIR/.env" ]; then
+    echo -e "${YELLOW}ℹ 从仓库内部读取配置: $SCRIPT_DIR/.env${NC}"
     CF_TOKEN=$(grep -E '^CLOUDFLARE_TUNNEL_TOKEN=' "$SCRIPT_DIR/.env" | cut -d '=' -f2- | tr -d '"' | tr -d "'")
 fi
 
