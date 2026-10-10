@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"game/monolith/pkg/chat"
-	"game/monolith/pkg/config"
-	"game/monolith/pkg/grpc"
-	"game/monolith/pkg/matchmaker"
-	"game/monolith/pkg/redis_sync"
-	"game/monolith/pkg/settlement"
-	"game/monolith/pkg/telegram"
+	"monolith/pkg/chat"
+	"monolith/pkg/config"
+	"monolith/pkg/grpc"
+	"monolith/pkg/matchmaker"
+	"monolith/pkg/redissync"
+	"monolith/pkg/settlement"
+	"monolith/pkg/telegram"
 )
 
 func main() {
@@ -30,12 +30,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Load configuration from ../.env (preferred to survive git pull updates) or ./.env
+	// Load configuration
 	cfg := config.LoadConfig()
 	cfg.PrintSummary()
 
 	// 1. Initialize Redis Synchronization Manager
-	redisMgr := redis_sync.NewRedisSyncManager(cfg.RedisAddr, cfg.RedisPass, 0)
+	redisMgr := redissync.NewRedisSyncManager(cfg.RedisAddr, cfg.RedisPass, 0)
 	_ = redisMgr
 	log.Printf("[Redis] Initialized state sync manager on %s (Connection Pool: 200)", cfg.RedisAddr)
 
@@ -101,7 +101,7 @@ func main() {
 		})
 	})
 
-	// Metrics endpoint
+    // Metrics endpoint
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
