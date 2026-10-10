@@ -1,3 +1,5 @@
+package matchmaker
+
 import (
 	"context"
 	"crypto/rand"

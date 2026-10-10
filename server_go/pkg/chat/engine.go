@@ -1,3 +1,5 @@
+package chat
+
 import (
 	"context"
 	"crypto/rand"
