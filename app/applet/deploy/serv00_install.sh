@@ -35,7 +35,6 @@ if ! command -v go >/dev/null 2>&1; then
     export GOROOT="$HOME/opt/go"
     export PATH="$HOME/opt/go/bin:$PATH"
 fi
-
 echo "${GREEN}当前 Go 版本: $(go version)${NC}"
 
 # 3. 端口规划提示
@@ -73,7 +72,7 @@ echo "${BLUE}[4/6] 编译 FreeBSD 静态二进制文件...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR/server_go"
 
-# 强制写入正确的 go.mod 文件，彻底杜绝换行符粘连或 git pull 覆盖
+# 强制动态写入标准 pristine go.mod (防 git pull / stash 导致的粘连损坏)
 cat << 'EOF' > go.mod
 module monolith
 
@@ -91,8 +90,10 @@ export GOARCH=amd64
 export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
 export GOSUMDB=off
 export GOPRIVATE=github.com/gamehall/monolith
+
 go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
 chmod +x "$SCRIPT_DIR/server_go/bin/gamehall-monolith"
+
 echo "${GREEN}FreeBSD 二进制编译成功: server_go/bin/gamehall-monolith${NC}"
 
 # 5. 启动服务 (带后台守护与环境变量传递)

@@ -76,7 +76,7 @@ fi
 echo -e "${BLUE}[5/7] 编译 Go 棋牌单体微内核 (ARM/ARM64 优化)...${NC}"
 cd "$SCRIPT_DIR/server_go"
 
-# 强制写入正确的 go.mod，绝对避免换行符粘连或 git stash/pull 冲突
+# 强制动态写入标准 pristine go.mod (防 git pull / stash 导致的粘连损坏)
 cat << 'EOF' > go.mod
 module monolith
 
@@ -91,12 +91,14 @@ export CGO_ENABLED=0
 export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
 export GOSUMDB=off
 export GOPRIVATE=github.com/gamehall/monolith
+
 mkdir -p "$SCRIPT_DIR/server_go/bin"
 echo -e "正在同步 Go 模块依赖并修剪缓存 (GOPROXY: goproxy.cn)..."
 rm -f go.sum
 go mod tidy || true
 go mod download || true
 go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
+
 echo -e "${GREEN}Go 单体核心二进制编译完成: server_go/bin/gamehall-monolith${NC}"
 
 # 5. 编译前端静态页面 (可选本地或直接开发环境)
@@ -110,6 +112,7 @@ fi
 # 6. 后台启动棋牌大厅服务
 echo -e "${BLUE}[6/6] 启动 Go 棋牌服务监听...${NC}"
 pkill -f "gamehall-monolith" || true
+
 export HTTP_PORT=${HTTP_PORT:-8080}
 export GRPC_PORT=${GRPC_PORT:-50051}
 export REDIS_ADDR=${REDIS_ADDR:-"127.0.0.1:6379"}
@@ -135,4 +138,5 @@ if ps -p $PID > /dev/null; then
     echo -e "${GREEN}==================================================================${NC}"
 else
     echo -e "${RED}启动失败，请检查日志: cat $HOME/gamehall.log${NC}"
-    exit 1fi
+    exit 1
+fi
