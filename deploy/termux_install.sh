@@ -77,6 +77,10 @@ echo -e "${BLUE}[5/7] 编译 Go 棋牌单体微内核 (ARM/ARM64 优化)...${NC}
 cd "$SCRIPT_DIR/server_go"
 
 export CGO_ENABLED=0
+export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
+echo -e "正在同步 Go 模块依赖 (GOPROXY: goproxy.cn)..."
+go mod download || true
+go mod tidy || true
 go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" ./main.go
 
 echo -e "${GREEN}Go 单体核心二进制编译完成: server_go/bin/gamehall-monolith${NC}"

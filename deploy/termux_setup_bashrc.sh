@@ -41,6 +41,29 @@ fi
 # 确保安装必要依赖
 pkg update -y && pkg install -y ca-certificates proot curl
 
+# 确保 cloudflared 二进制已安装至 $HOME/bin 或 $PREFIX/bin
+mkdir -p "$HOME/bin"
+export PATH="$HOME/bin:$PREFIX/bin:$PATH"
+
+if ! command -v cloudflared >/dev/null 2>&1 && [ ! -f "$HOME/bin/cloudflared" ]; then
+    echo -e "${BLUE}检测到 cloudflared 未安装，正在自动下载官方 ARM64 客户端...${NC}"
+    ARCH=$(uname -m)
+    CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64"
+    if [ "$ARCH" = "arm" ] || [ "$ARCH" = "armv7l" ]; then
+        CF_URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm"
+    fi
+    curl -L --retry 3 --connect-timeout 10 -o "$HOME/bin/cloudflared" "$CF_URL" || {
+        echo -e "${YELLOW}通过加速源重试下载...${NC}"
+        curl -L -o "$HOME/bin/cloudflared" "https://ghproxy.net/$CF_URL" || true
+    }
+    chmod +x "$HOME/bin/cloudflared"
+fi
+
+# 建立软链接到系统路径，确保 termux-chroot 和普通环境均能直接找到
+if [ -f "$HOME/bin/cloudflared" ] && [ ! -f "$PREFIX/bin/cloudflared" ]; then
+    ln -sf "$HOME/bin/cloudflared" "$PREFIX/bin/cloudflared" 2>/dev/null || true
+fi
+
 # 写入 ~/.bashrc
 cat << 'EOF' > ~/.bashrc
 
@@ -56,7 +79,7 @@ echo -e "nameserver 223.5.5.5\nnameserver 119.29.29.29\nnameserver 1.1.1.1" > $P
 # ==============================================================================
 export GODEBUG=netdns=go
 export SSL_CERT_FILE=$PREFIX/etc/tls/cert.pem
-export PATH=$HOME/bin:$PATH
+export PATH=$HOME/bin:$PREFIX/bin:$PATH
 
 EOF
 
@@ -68,7 +91,8 @@ if [ -n "$CF_TOKEN" ]; then
 # ==============================================================================
 if ! pgrep -f cloudflared >/dev/null 2>&1; then
     echo "正在后台启动 Cloudflare 生产穿透隧道 (IPv4 + HTTP/2)..."
-    termux-chroot cloudflared tunnel --edge-ip-version 4 --protocol http2 run --token ${CF_TOKEN} > \$HOME/cloudflared.log 2>&1 &
+    CF_BIN=\$(command -v cloudflared 2>/dev/null || echo "\$HOME/bin/cloudflared")
+    termux-chroot "\$CF_BIN" tunnel --edge-ip-version 4 --protocol http2 run --token ${CF_TOKEN} > \$HOME/cloudflared.log 2>&1 &
 fi
 EOF
 else
@@ -78,7 +102,8 @@ else
 # ==============================================================================
 if ! pgrep -f cloudflared >/dev/null 2>&1; then
     echo "正在后台启动 Cloudflare 快速穿透隧道 (IPv4 + HTTP/2)..."
-    termux-chroot cloudflared tunnel --edge-ip-version 4 --protocol http2 --url http://127.0.0.1:8080 > $HOME/cloudflared.log 2>&1 &
+    CF_BIN=$(command -v cloudflared 2>/dev/null || echo "$HOME/bin/cloudflared")
+    termux-chroot "$CF_BIN" tunnel --edge-ip-version 4 --protocol http2 --url http://127.0.0.1:8080 > $HOME/cloudflared.log 2>&1 &
 fi
 EOF
 fi

@@ -1,13 +1,17 @@
-package settlement
-
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
+
+func newTxUUID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 type SettlementDelta struct {
 	UserID     string `json:"userId"`
@@ -65,7 +69,7 @@ func (e *SettlementEngine) SettleGame(ctx context.Context, roomID, gameType stri
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	txID := fmt.Sprintf("tx_set_%s_%s", time.Now().Format("20060102150405"), uuid.New().String()[:6])
+	txID := fmt.Sprintf("tx_set_%s_%s", time.Now().Format("20060102150405"), newTxUUID()[:6])
 
 	var totalPot int64 = 0
 	var totalRake int64 = 0

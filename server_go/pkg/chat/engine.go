@@ -1,14 +1,18 @@
-package chat
-
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
+
+func newShortID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 type ChatMessage struct {
 	ID        string `json:"id"`
@@ -52,7 +56,7 @@ func (e *ChatEngine) SendMessage(ctx context.Context, roomID, userID, username, 
 	defer e.mu.Unlock()
 
 	msg := ChatMessage{
-		ID:        fmt.Sprintf("msg_%s_%s", time.Now().Format("150405"), uuid.New().String()[:4]),
+		ID:        fmt.Sprintf("msg_%s_%s", time.Now().Format("150405"), newShortID()[:4]),
 		RoomID:    roomID,
 		UserID:    userID,
 		Username:  username,

@@ -1,14 +1,18 @@
-package matchmaker
-
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/google/uuid"
 )
+
+func newMatchUUID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 type GameType string
 
@@ -187,7 +191,7 @@ func (p *MatchmakingPool) processQueueBatch() {
 
 func (p *MatchmakingPool) dispatchRoom(players []*MatchTicket, game GameType, tier RoomTier, fillBots bool) {
 	atomic.AddUint64(&p.totalMatched, uint64(len(players)))
-	roomID := fmt.Sprintf("rm_%s_%s", game, uuid.New().String()[:8])
+	roomID := fmt.Sprintf("rm_%s_%s", game, newMatchUUID()[:8])
 	baseScore := 100
 	switch tier {
 	case TierMid:
