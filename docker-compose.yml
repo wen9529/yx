@@ -1,0 +1,41 @@
+services:
+  # 1. Redis 高性能内存状态集群
+  redis:
+    image: redis:7.2-alpine
+    container_name: gamehall-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --save ""
+    volumes:
+      - redis-data:/data
+    networks:
+      - gamehall-net
+
+  # 2. Go 棋牌单体微内核核心服务
+  gamehall-server:
+    build:
+      context: ./server_go
+      dockerfile: Dockerfile
+    container_name: gamehall-monolith
+    restart: always
+    ports:
+      - "8080:8080"   # HTTP Gateway / Health / Metrics
+      - "50051:50051" # gRPC Mesh Inter-service Bus
+    environment:
+      - HTTP_PORT=8080
+      - GRPC_PORT=50051
+      - REDIS_ADDR=gamehall-redis:6379
+      - WORKER_POOL_COUNT=128
+      - HOUSE_RAKE_RATE=0.05
+    depends_on:
+      - redis
+    networks:
+      - gamehall-net
+
+networks:
+  gamehall-net:
+    driver: bridge
+
+volumes:
+  redis-data:

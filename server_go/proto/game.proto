@@ -1,0 +1,215 @@
+syntax = "proto3";
+
+package game.v1;
+
+option go_package = "github.com/gamehall/monolith/proto;gamev1";
+
+// 游戏品类枚举
+enum GameType {
+  GAME_TYPE_UNSPECIFIED = 0;
+  DOUDIZHU = 1;      // 斗地主
+  BIG_TWO = 2;       // 锄大地
+  PAODEKUAI = 3;     // 跑得快
+  SHISANSHUI = 4;    // 十三水
+  MAHJONG = 5;       // 四川麻将/血战到底
+}
+
+// 房间等级与底分场次
+enum RoomTier {
+  TIER_UNSPECIFIED = 0;
+  NOVICE = 1;        // 新手场 (底分 100)
+  MID = 2;           // 进阶场 (底分 500)
+  HIGH = 3;          // 高手场 (底分 2000)
+  MASTER = 4;        // 宗师场 (底分 10000)
+}
+
+// 扑克牌花色
+enum CardSuit {
+  SUIT_UNSPECIFIED = 0;
+  SPADE = 1;         // 黑桃
+  HEART = 2;         // 红桃
+  CLUB = 3;          // 梅花
+  DIAMOND = 4;       // 方块
+  JOKER = 5;         // 王牌
+}
+
+message Card {
+  string id = 1;
+  CardSuit suit = 2;
+  int32 rank = 3;     // 3-15 (3..A,2), 16:小王, 17:大王
+  string display = 4;
+}
+
+// 麻将牌
+enum MahjongSuit {
+  MAHJONG_SUIT_UNSPECIFIED = 0;
+  WAN = 1;           // 万
+  TIAO = 2;          // 条
+  TONG = 3;          // 筒
+}
+
+message MahjongTile {
+  string id = 1;
+  MahjongSuit suit = 2;
+  int32 value = 3;    // 1-9
+  string display = 4;
+}
+
+// 玩家基础信息
+message PlayerProfile {
+  string user_id = 1;
+  string username = 2;
+  string avatar_url = 3;
+  int64 coins = 4;
+  int32 elo_rating = 5;
+  int32 win_count = 6;
+  int32 total_games = 7;
+}
+
+// ======================== 匹配服务 ========================
+service MatchmakingService {
+  rpc JoinQueue (JoinQueueRequest) returns (JoinQueueResponse);
+  rpc CancelQueue (CancelQueueRequest) returns (CancelQueueResponse);
+  rpc WatchMatch (WatchMatchRequest) returns (stream MatchNotify);
+}
+
+message JoinQueueRequest {
+  string user_id = 1;
+  GameType game_type = 2;
+  RoomTier tier = 3;
+}
+
+message JoinQueueResponse {
+  bool success = 1;
+  string ticket_id = 2;
+  int32 estimated_wait_seconds = 3;
+}
+
+message CancelQueueRequest {
+  string ticket_id = 1;
+  string user_id = 2;
+}
+
+message CancelQueueResponse {
+  bool success = 1;
+}
+
+message WatchMatchRequest {
+  string ticket_id = 1;
+}
+
+message MatchNotify {
+  enum EventType {
+    QUEUING = 0;
+    MATCHED = 1;
+    TIMEOUT = 2;
+    CANCELLED = 3;
+  }
+  EventType event = 1;
+  string room_id = 2;
+  string target_game_node = 3;
+  repeated PlayerProfile matched_players = 4;
+}
+
+// ======================== 房间游戏服务 ========================
+service GameRoomService {
+  rpc DispatchAction (GameActionRequest) returns (GameActionResponse);
+  rpc SyncRoomState (SyncRoomStateRequest) returns (RoomStateResponse);
+  rpc SubscribeRoomEvents (SubscribeRoomEventsRequest) returns (stream RoomEvent);
+}
+
+message GameActionRequest {
+  string room_id = 1;
+  string user_id = 2;
+  string action_type = 3; // "BID", "PLAY", "PASS", "ARRANGE", "PONG", "KONG", "HU"
+  repeated Card cards = 4;
+  MahjongTile tile = 5;
+  int32 bid_score = 6;
+  // 十三水三道排列
+  repeated Card thirteen_head = 7;
+  repeated Card thirteen_mid = 8;
+  repeated Card thirteen_tail = 9;
+}
+
+message GameActionResponse {
+  bool accepted = 1;
+  string error_message = 2;
+  int64 next_turn_player = 3;
+  int32 current_multiplier = 4;
+}
+
+message SyncRoomStateRequest {
+  string room_id = 1;
+  string user_id = 2;
+}
+
+message RoomStateResponse {
+  string room_id = 1;
+  GameType game_type = 2;
+  int32 status = 3; // 1: Waiting, 2: Playing, 3: Settled
+  int32 base_score = 4;
+  int32 current_multiplier = 5;
+  string current_turn_user_id = 6;
+  int32 time_remaining_seconds = 7;
+  repeated Card self_hand_cards = 8;
+  repeated MahjongTile self_hand_tiles = 9;
+}
+
+message SubscribeRoomEventsRequest {
+  string room_id = 1;
+  string user_id = 2;
+}
+
+message RoomEvent {
+  string event_name = 1; // "ACTION_BROADCAST", "TURN_CHANGE", "ROUND_OVER"
+  bytes payload_json = 2;
+  int64 server_timestamp = 3;
+}
+
+// ======================== 结算系统服务 ========================
+service SettlementService {
+  rpc SettleRound (SettleRoundRequest) returns (SettleRoundResponse);
+  rpc QueryWalletLedger (WalletLedgerRequest) returns (WalletLedgerResponse);
+}
+
+message PlayerSettlementDelta {
+  string user_id = 1;
+  int64 delta_coins = 2;
+  int64 fee_deducted = 3;
+  bool is_winner = 4;
+  string settlement_title = 5; // e.g. "春天 2倍", "一条龙 +108分", "自摸清一色"
+}
+
+message SettleRoundRequest {
+  string room_id = 1;
+  GameType game_type = 2;
+  int32 base_score = 3;
+  int32 final_multiplier = 4;
+  repeated PlayerSettlementDelta player_deltas = 5;
+}
+
+message SettleRoundResponse {
+  bool success = 1;
+  string transaction_tx_id = 2;
+  int64 settled_pot = 3;
+  int64 house_rake_collected = 4;
+}
+
+message WalletLedgerRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message WalletLedgerResponse {
+  int64 balance = 1;
+  repeated WalletRecord records = 2;
+}
+
+message WalletRecord {
+  string tx_id = 1;
+  string room_id = 2;
+  int64 delta = 3;
+  int64 after_balance = 4;
+  string reason = 5;
+  int64 timestamp = 6;
+}

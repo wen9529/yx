@@ -1,0 +1,6 @@
+{
+  "name": "Go 棋牌游戏大厅与高并发匹配结算系统",
+  "description": "基于Go语言高并发架构的综合棋牌游戏大厅（锄大地、跑得快、斗地主、十三水、麻将），集成gRPC跨服务通信、Redis高性能状态同步、实时匹配与结算模拟器及完整Go单体微内核源码。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
