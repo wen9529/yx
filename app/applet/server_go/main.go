@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -19,6 +19,33 @@ import (
 	"monolith/pkg/settlement"
 	"monolith/pkg/telegram"
 )
+
+// spaHandler 用于支持 React 单页应用 (SPA) 路由，找不到文件时自动回退到 index.html
+type spaHandler struct {
+	staticPath string
+	indexPath  string
+}
+
+func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 获取绝对路径
+	path := filepath.Join(h.staticPath, r.URL.Path)
+
+	// 检查文件或目录是否存在
+	fi, err := os.Stat(path)
+	if os.IsNotExist(err) || fi.IsDir() {
+		// 如果不存在或是目录，返回 index.html 供前端路由处理
+		http.ServeFile(w, r, filepath.Join(h.staticPath, h.indexPath))
+		return
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 存在静态文件（如 JS/CSS/图片），直接托管提供
+	http.FileServer(http.Dir(h.staticPath)).ServeHTTP(w, r)
+}
 
 func main() {
 	log.Println("================================================================")
@@ -100,6 +127,11 @@ func main() {
 			},
 		})
 	})
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok","service":"gamehall-monolith"}`))
+	})
 
 	// Metrics endpoint
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
@@ -115,22 +147,26 @@ func main() {
 	})
 
 	// Frontend Static File Server with SPA Fallback
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		path := "./dist" + r.URL.Path
-		if _, err := os.Open(path); err == nil && r.URL.Path != "/" {
-			http.FileServer(http.Dir("./dist")).ServeHTTP(w, r)
-			return
-		}
-		http.ServeFile(w, r, "./dist/index.html")
-	})
+	frontendDir := "./dist"
+	if _, err := os.Stat(frontendDir); os.IsNotExist(err) {
+		os.MkdirAll(frontendDir, 0755)
+		os.WriteFile(filepath.Join(frontendDir, "index.html"), []byte("<h1>GameHall Monolith Backend Running (Waiting for React Frontend Build)</h1>"), 0644)
+	}
+
+	mux.Handle("/", spaHandler{staticPath: frontendDir, indexPath: "index.html"})
+
+	port := fmt.Sprintf(":%d", cfg.HttpPort)
+	if port == ":0" || port == ":" {
+		port = ":8080"
+	}
 
 	httpServer := &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.HttpPort),
+		Addr:    port,
 		Handler: mux,
 	}
 
 	go func() {
-		log.Printf("[HTTP Gateway] Listening on http://0.0.0.0:%d", cfg.HttpPort)
+		log.Printf("[HTTP Gateway] Listening on http://0.0.0.0%s", port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP Gateway error: %v", err)
 		}
