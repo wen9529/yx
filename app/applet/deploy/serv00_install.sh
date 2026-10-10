@@ -72,7 +72,8 @@ echo "${BLUE}[4/6] 编译 FreeBSD 静态二进制文件...${NC}"
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR/server_go"
 
-# 强制动态写入标准 pristine go.mod (防 git pull / stash 导致的粘连损坏)
+# 强制启用模块模式并写入标准 pristine go.mod
+export GO111MODULE=on
 cat << 'EOF' > go.mod
 module monolith
 
@@ -91,7 +92,7 @@ export GOPROXY="https://goproxy.cn,https://proxy.golang.org,direct"
 export GOSUMDB=off
 export GOPRIVATE=github.com/gamehall/monolith
 
-go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
+go build -mod=mod -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
 chmod +x "$SCRIPT_DIR/server_go/bin/gamehall-monolith"
 
 echo "${GREEN}FreeBSD 二进制编译成功: server_go/bin/gamehall-monolith${NC}"

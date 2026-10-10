@@ -89,7 +89,8 @@ fi
 echo -e "${BLUE}[5/7] 编译 Go 棋牌单体微内核 (ARM/ARM64 优化)...${NC}"
 cd "$SCRIPT_DIR/server_go"
 
-# 强制动态写入标准 pristine go.mod (防 git pull / stash 导致的粘连损坏)
+# 强制启用模块模式并写入标准 pristine go.mod
+export GO111MODULE=on
 cat << 'EOF' > go.mod
 module monolith
 
@@ -110,7 +111,7 @@ echo -e "正在同步 Go 模块依赖并修剪缓存 (GOPROXY: goproxy.cn)..."
 rm -f go.sum
 go mod tidy || true
 go mod download || true
-go build -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
+go build -mod=mod -ldflags="-s -w" -o "$SCRIPT_DIR/server_go/bin/gamehall-monolith" .
 
 echo -e "${GREEN}Go 单体核心二进制编译完成: server_go/bin/gamehall-monolith${NC}"
 
